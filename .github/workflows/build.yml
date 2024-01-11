@@ -1,0 +1,119 @@
+name: Release
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: [1.x]
+        include:
+          # MacOS
+          - os: darwin
+            arch: amd64
+            bit: "64"
+            ext: zip
+          - os: darwin
+            arch: arm64
+            bit: "64"
+            ext: zip
+          # Linux
+          - os: linux
+            arch: 386
+            bit: "32"
+            ext: tar.gz
+          - os: linux
+            arch: amd64
+            bit: "64"
+            ext: tar.gz
+          - os: linux
+            arch: arm64
+            bit: "64"
+            ext: tar.gz
+          - os: linux
+            arch: arm
+            arm_version: 5
+            bit: "32"
+            ext: tar.gz
+          - os: linux
+            arch: arm
+            arm_version: 6
+            bit: "32"
+            ext: tar.gz
+          - os: linux
+            arch: arm
+            arm_version: 7
+            bit: "32"
+            ext: tar.gz
+          - os: linux
+            arch: mips
+            bit: "32"
+            ext: tar.gz
+          - os: linux
+            arch: mips64
+            bit: "64"
+            ext: tar.gz
+          - os: linux
+            arch: mipsle
+            bit: "32"
+            ext: tar.gz
+          - os: linux
+            arch: mips64le
+            bit: "64"
+            ext: tar.gz
+          # Windows
+          - os: windows
+            arch: 386
+            bit: "32"
+            ext: zip
+          - os: windows
+            arch: amd64
+            bit: "64"
+            ext: zip
+          - os: windows
+            arch: arm64
+            bit: "64"
+            ext: zip
+
+    steps:
+      - name: Build
+        run: |
+          # 构建输出文件名
+          output_name="CloudflareST_${{ matrix.os }}_${{ matrix.arch }}${{ matrix.bit }}"
+          if [ "${{ matrix.arch }}" = "arm" ]; then
+            output_name="${output_name}v${{ matrix.arm_version }}"
+          fi
+          output_name="${output_name}_${{ env.VERSION }}"
+          # 构建命令
+          env GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -ldflags "-s -w -X main.version=${{ env.VERSION }}" -v -o $output_name
+          # 打包
+          if [ "${{ matrix.ext }}" = "zip" ]; then
+            zip $output_name.${{ matrix.ext }} $output_name
+          else
+            tar cvzf $output_name.${{ matrix.ext }} $output_name
+          fi
+
+      - name: Archive production artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.bit }}-${{ env.VERSION }}
+          path: CloudflareST_${{ matrix.os }}_${{ matrix.arch }}${{ matrix.bit }}_${{ env.VERSION }}*.${{ matrix.ext }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v2
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            CloudflareST-*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
