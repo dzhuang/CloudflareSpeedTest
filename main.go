@@ -12,8 +12,8 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/XIU2/CloudflareSpeedTest/task"
-	"github.com/XIU2/CloudflareSpeedTest/utils"
+	"github.com/dzhuang/CloudflareSpeedTest/task"
+	"github.com/dzhuang/CloudflareSpeedTest/utils"
 )
 
 var (

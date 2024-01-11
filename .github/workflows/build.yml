@@ -11,12 +11,11 @@ on:
 
 jobs:
   build:
-    name: Build and Release
+    name: Build and Release ${{ matrix.os }}-${{ matrix.arch }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        go-version: [1.x]
         include:
           # MacOS
           - os: darwin
@@ -42,17 +41,17 @@ jobs:
             ext: tar.gz
           - os: linux
             arch: arm
-            arm_version: 5
+            goarm: 5
             bit: "32"
             ext: tar.gz
           - os: linux
             arch: arm
-            arm_version: 6
+            goarm: 6
             bit: "32"
             ext: tar.gz
           - os: linux
             arch: arm
-            arm_version: 7
+            goarm: 7
             bit: "32"
             ext: tar.gz
           - os: linux
@@ -90,28 +89,38 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: '1.X'
+
+      - name: Get the version
+        run: echo "VERSION=$(echo ${GITHUB_REF#refs/tags/})" >> $GITHUB_ENV
+
       - name: Build
         run: |
-          # 构建输出文件名
-          output_name="CloudflareST_${{ matrix.os }}_${{ matrix.arch }}${{ matrix.bit }}"
-          if [ "${{ matrix.arch }}" = "arm" ]; then
-            output_name="${output_name}v${{ matrix.arm_version }}"
-          fi
-          output_name="${output_name}_${{ env.VERSION }}"
-          # 构建命令
-          env GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -ldflags "-s -w -X main.version=${{ env.VERSION }}" -v -o $output_name
-          # 打包
+          echo "Building for OS: ${{ matrix.os }}, Arch: ${{ matrix.arch }}, Version: ${{ env.VERSION }}"
+          output_name="CloudflareST_${{ matrix.os }}_${{ matrix.arch }}${{ matrix.goarm }}"
+          echo "Output name: $output_name"
+
+          command="GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} GOARM=${{ matrix.goarm }} go build -ldflags \"-s -w -X main.version=${{ env.VERSION }}\" -v -o $output_name"
+          echo "Running command: $command"
+          eval $command
+
           if [ "${{ matrix.ext }}" = "zip" ]; then
             zip $output_name.${{ matrix.ext }} $output_name
           else
             tar cvzf $output_name.${{ matrix.ext }} $output_name
           fi
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
 
       - name: Archive production artifacts
         uses: actions/upload-artifact@v2
         with:
-          name: ${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.bit }}-${{ env.VERSION }}
-          path: CloudflareST_${{ matrix.os }}_${{ matrix.arch }}${{ matrix.bit }}_${{ env.VERSION }}*.${{ matrix.ext }}
+          name: ${{ matrix.os }}-${{ matrix.arch }}
+          path: CloudflareST_*.${{ matrix.ext }}
 
       - name: Upload packages
         uses: svenstaro/upload-release-action@v2
