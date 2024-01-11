@@ -11,7 +11,7 @@ on:
 
 jobs:
   build:
-    name: Build and Release ${{ matrix.os }}-${{ matrix.arch }}
+    name: Build and Release ${{ matrix.os }}-${{ matrix.arch }}${{ matrix.goarm }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -75,6 +75,7 @@ jobs:
             arch: 386
             bit: "32"
             ext: zip
+            original_ext: .exe
           - os: windows
             arch: amd64
             bit: "64"
@@ -83,6 +84,7 @@ jobs:
             arch: arm64
             bit: "64"
             ext: zip
+            original_ext: .exe
 
     steps:
       - uses: actions/checkout@v3
@@ -95,22 +97,25 @@ jobs:
           go-version: '1.X'
 
       - name: Get the version
-        run: echo "VERSION=$(echo ${GITHUB_REF#refs/tags/})" >> $GITHUB_ENV
+        run: |
+          echo "VERSION=$(echo ${GITHUB_REF#refs/tags/})" >> $GITHUB_ENV
+          echo "OUTPUT_NAME=CloudflareST_${{ matrix.os }}_${{ matrix.arch }}${{ matrix.goarm }}${{ matrix. original_ext}}" >> $GITHUB_ENV
+          echo "ZIP_NAME=CloudflareST_${{ matrix.os }}_${{ matrix.arch }}${{ matrix.goarm }}.${{ matrix. ext}}" >> $GITHUB_ENV
 
       - name: Build
         run: |
           echo "Building for OS: ${{ matrix.os }}, Arch: ${{ matrix.arch }}, Version: ${{ env.VERSION }}"
           output_name="CloudflareST_${{ matrix.os }}_${{ matrix.arch }}${{ matrix.goarm }}"
-          echo "Output name: $output_name"
+          echo "Output name: ${{ env.OUTPUT_NAME }}"
 
-          command="GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} GOARM=${{ matrix.goarm }} go build -ldflags \"-s -w -X main.version=${{ env.VERSION }}\" -v -o $output_name"
+          command="GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} GOARM=${{ matrix.goarm }} go build -ldflags \"-s -w -X main.version=${{ env.VERSION }}\" -v -o ${{ env.OUTPUT_NAME }}"
           echo "Running command: $command"
           eval $command
 
           if [ "${{ matrix.ext }}" = "zip" ]; then
-            zip $output_name.${{ matrix.ext }} $output_name
+            zip "${{ env.ZIP_NAME }}" "${{ env.OUTPUT_NAME }}"
           else
-            tar cvzf $output_name.${{ matrix.ext }} $output_name
+            tar cvzf "${{ env.ZIP_NAME }}" "${{ env.OUTPUT_NAME }}"
           fi
         env:
           GOOS: ${{ matrix.os }}
@@ -119,14 +124,13 @@ jobs:
       - name: Archive production artifacts
         uses: actions/upload-artifact@v2
         with:
-          name: ${{ matrix.os }}-${{ matrix.arch }}
-          path: CloudflareST_*.${{ matrix.ext }}
+          path: ${{ env.ZIP_NAME }}
 
       - name: Upload packages
         uses: svenstaro/upload-release-action@v2
         if: github.event_name == 'release'
         with:
           repo_token: ${{ github.token }}
-          file: "CloudflareST_*"
+          file: ${{ env.ZIP_NAME }}
           tag: ${{ github.ref }}
           file_glob: true
